@@ -141,20 +141,24 @@ def import_url():
     if not url:
         flash('No URL provided.', 'danger')
         return redirect(url_for('home'))
-    recipe_data = add_recipe_from_url(url)
-    if not recipe_data:
-        flash('Could not import recipe from the provided URL.', 'danger')
+    try:
+        recipe_data = add_recipe_from_url(url)
+        if not recipe_data:
+            flash('Could not import recipe from the provided URL.', 'danger')
+            return redirect(url_for('home'))
+        # Show the add page with imported data for user confirmation
+        ingredients_list = recipe_data['ingredients']
+        return render_template('add.html',
+            name=recipe_data['name'],
+            ingredients_list=ingredients_list,
+            instructions=recipe_data['instructions'],
+            image_url=recipe_data['image_url'],
+            imported=True
+        )
+    except Exception as e:
+        print(f"Error during import: {e}")
+        flash('An error occurred while importing the recipe. Please try again or use a different URL.', 'danger')
         return redirect(url_for('home'))
-    # Show the add page with imported data for user confirmation
-    # ingredients_list is now a list of dicts
-    ingredients_list = recipe_data['ingredients']
-    return render_template('add.html',
-        name=recipe_data['name'],
-        ingredients_list=ingredients_list,
-        instructions=recipe_data['instructions'],
-        image_url=recipe_data['image_url'],
-        imported=True
-    )
 
 @app.route('/recipe/<int:recipe_id>')
 def view_recipe(recipe_id):
