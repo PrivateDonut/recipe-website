@@ -7,6 +7,7 @@ from importer import add_recipe_from_url
 from flask import flash
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
+import re
 
 # MySQL configuration
 MYSQL_USER = os.getenv('MYSQL_USER', 'root')
@@ -166,9 +167,15 @@ def edit_recipe(recipe_id):
     recipe = Recipe.query.get_or_404(recipe_id)
     if request.method == 'POST':
         recipe.name = request.form['name']
-        # recipe.type = request.form['type']  # Removed since type is no longer in the form
-        ingredients_list = request.form.getlist('ingredients')
-        recipe.ingredients = '\n'.join([i.strip() for i in ingredients_list if i.strip()])
+        names = request.form.getlist('ingredient_name')
+        qtys = request.form.getlist('ingredient_qty')
+        units = request.form.getlist('ingredient_unit')
+        ingredients = []
+        for n, q, u in zip(names, qtys, units):
+            if n.strip():
+                part = f"{q.strip()} {u.strip()} {n.strip()}".strip()
+                ingredients.append(part)
+        recipe.ingredients = '\n'.join(ingredients)
         recipe.instructions = request.form['instructions']
         image_file = request.files.get('image')
         if image_file and image_file.filename:
@@ -179,8 +186,20 @@ def edit_recipe(recipe_id):
         db.session.commit()
         return redirect(url_for('view_recipe', recipe_id=recipe.id))
     default_image = url_for('static', filename='default.jpg')
-    # Split ingredients for the edit form
-    ingredients_list = recipe.ingredients.split('\n') if recipe.ingredients else ['']
+    # Parse ingredients for the edit form
+    def parse_ingredient(ingredient_str):
+        match = re.match(r'^\s*(?P<quantity>[\d/.]+)?\s*(?P<unit>[a-zA-Z]+)?\s*(?P<name>.+)$', ingredient_str.strip())
+        if match:
+            return {
+                'quantity': match.group('quantity') or '',
+                'unit': match.group('unit') or '',
+                'name': match.group('name') or ''
+            }
+        else:
+            return {'quantity': '', 'unit': '', 'name': ingredient_str.strip()}
+    ingredients_list = [parse_ingredient(ing) for ing in recipe.ingredients.split('\n') if ing.strip()]
+    if not ingredients_list:
+        ingredients_list = [{'quantity': '', 'unit': '', 'name': ''}]
     return render_template('edit_recipe.html', recipe=recipe, default_image=default_image, ingredients_list=ingredients_list)
 
 @app.route('/recipe/<int:recipe_id>/delete', methods=['POST'])
