@@ -6,3 +6,4 @@ webdriver-manager
 beautifulsoup4
 openai
 python-dotenv 
+PyMySQL 

@@ -20,11 +20,12 @@ A full-featured web application for managing, viewing, and importing recipes. Bu
 ### 1. System Requirements
 - Python 3.7+
 - Ubuntu (or any Linux with Python and Chrome)
+- MySQL server (e.g., MariaDB or MySQL 5.7+)
 
 ### 2. Install System Dependencies
 ```bash
 sudo apt update
-sudo apt install python3 python3-pip python3-venv chromium-browser chromium-chromedriver unzip -y
+sudo apt install python3 python3-pip python3-venv chromium-browser chromium-chromedriver unzip mysql-server libmysqlclient-dev -y
 ```
 
 ### 3. Clone the Repository
@@ -45,6 +46,10 @@ pip install -r requirements.txt
 Create a `.env` file in the project root:
 ```
 OPENAI_API_KEY=sk-...
+MYSQL_USER=your_mysql_user
+MYSQL_PASSWORD=your_mysql_password
+MYSQL_HOST=localhost
+MYSQL_DB=recipes
 ```
 Or export it in your shell:
 ```bash
@@ -52,9 +57,20 @@ export OPENAI_API_KEY=sk-...
 ```
 
 ### 6. Initialize the Database
+Create the MySQL database and user if not already done:
+```bash
+sudo mysql -u root -p
+# In the MySQL shell:
+CREATE DATABASE recipes CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'your_mysql_user'@'localhost' IDENTIFIED BY 'your_mysql_password';
+GRANT ALL PRIVILEGES ON recipes.* TO 'your_mysql_user'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
+```
+Then initialize tables:
 ```bash
 python3 app.py
-# This will create the database and tables. Press Ctrl+C after it starts if you want to run it as a service.
+# This will create the tables in your MySQL database. Press Ctrl+C after it starts if you want to run it as a service.
 ```
 
 ### 7. Run the App (Development)
@@ -115,7 +131,7 @@ For production, use Nginx to proxy requests to Gunicorn.
 ## Notes
 - **OpenAI API Key**: Required for ingredient parsing when importing recipes from URLs.
 - **Chrome/Chromium**: Selenium uses headless Chrome for scraping. Ensure `chromium-browser` and `chromium-chromedriver` are installed.
-- **Database**: Uses SQLite by default (`instance/recipes.db`).
+- **Database**: Uses MySQL by default (see `.env` for configuration).
 
 ---
 

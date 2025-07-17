@@ -1,13 +1,21 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
 from flask_sqlalchemy import SQLAlchemy
 import os
 from werkzeug.utils import secure_filename
 import random
 from importer import add_recipe_from_url
 from flask import flash
+from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
+
+# MySQL configuration
+MYSQL_USER = os.getenv('MYSQL_USER', 'root')
+MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', '')
+MYSQL_HOST = os.getenv('MYSQL_HOST', 'localhost')
+MYSQL_DB = os.getenv('MYSQL_DB', 'recipes')
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///recipes.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}/{MYSQL_DB}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join('static')
 app.secret_key = 'supersecretkey'  # Needed for session
@@ -20,6 +28,69 @@ class Recipe(db.Model):
     ingredients = db.Column(db.Text, nullable=False)
     instructions = db.Column(db.Text, nullable=False)
     image_url = db.Column(db.String(255), nullable=True, default=None)
+
+# User model
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(128), nullable=False)
+
+# Helper: get current user
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('You must be logged in to upload recipes.', 'warning')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Registration route
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        email = request.form['email']
+        password = request.form['password']
+        if User.query.filter((User.username == username) | (User.email == email)).first():
+            flash('Username or email already exists.', 'danger')
+            return redirect(url_for('register'))
+        user = User(
+            username=username,
+            email=email,
+            password_hash=generate_password_hash(password)
+        )
+        db.session.add(user)
+        db.session.commit()
+        flash('Registration successful. Please log in.', 'success')
+        return redirect(url_for('login'))
+    return render_template('register.html')
+
+# Login route
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username_or_email = request.form['username_or_email']
+        password = request.form['password']
+        user = User.query.filter((User.username == username_or_email) | (User.email == username_or_email)).first()
+        if user and check_password_hash(user.password_hash, password):
+            session['user_id'] = user.id
+            session['username'] = user.username
+            flash('Logged in successfully.', 'success')
+            return redirect(url_for('home'))
+        else:
+            flash('Invalid credentials.', 'danger')
+            return redirect(url_for('login'))
+    return render_template('login.html')
+
+# Logout route
+@app.route('/logout')
+def logout():
+    session.pop('user_id', None)
+    session.pop('username', None)
+    flash('Logged out.', 'info')
+    return redirect(url_for('home'))
 
 @app.route('/')
 def home():
@@ -34,6 +105,7 @@ def recipe_type(recipe_type):
     return render_template('home.html', recipes=recipes, default_image=default_image)
 
 @app.route('/add', methods=['GET', 'POST'])
+@login_required
 def add_recipe():
     if request.method == 'POST':
         name = request.form['name']
