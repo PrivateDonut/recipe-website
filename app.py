@@ -110,8 +110,15 @@ def add_recipe():
     if request.method == 'POST':
         name = request.form['name']
         # Collect all ingredient fields
-        ingredients_list = request.form.getlist('ingredients')
-        ingredients = '\n'.join([i.strip() for i in ingredients_list if i.strip()])
+        names = request.form.getlist('ingredient_name')
+        qtys = request.form.getlist('ingredient_qty')
+        units = request.form.getlist('ingredient_unit')
+        ingredients = []
+        for n, q, u in zip(names, qtys, units):
+            if n.strip():
+                part = f"{q.strip()} {u.strip()} {n.strip()}".strip()
+                ingredients.append(part)
+        ingredients_str = '\n'.join(ingredients)
         instructions = request.form['instructions']
         image_file = request.files.get('image')
         image_url = None
@@ -120,7 +127,7 @@ def add_recipe():
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             image_file.save(filepath)
             image_url = url_for('static', filename=filename)
-        new_recipe = Recipe(name=name, ingredients=ingredients, instructions=instructions, image_url=image_url)
+        new_recipe = Recipe(name=name, ingredients=ingredients_str, instructions=instructions, image_url=image_url)
         db.session.add(new_recipe)
         db.session.commit()
         return redirect(url_for('home'))

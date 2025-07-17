@@ -135,5 +135,49 @@ For production, use Nginx to proxy requests to Gunicorn.
 
 ---
 
+## User Authentication
+- Users can register with a username, email, and password.
+- Passwords are securely hashed and stored in the database.
+- Only authenticated users can upload recipes.
+- Login and logout functionality is provided.
+
+---
+
+## Database Notes
+- The `password_hash` column in the `user` table must be at least `VARCHAR(512)` to support modern password hashes (e.g., scrypt, bcrypt).
+- If you get an error like `Data too long for column 'password_hash'`, run this in your MySQL shell (after selecting your database):
+  ```sql
+  ALTER TABLE user MODIFY password_hash VARCHAR(512) NOT NULL;
+  ```
+- Use `SHOW TABLES;` and `DESCRIBE user;` to inspect your schema.
+
+---
+
+## Gunicorn Installation
+- Gunicorn must be installed in your virtual environment:
+  ```bash
+  source venv/bin/activate
+  pip install gunicorn
+  ```
+- Always run Gunicorn using the venv path, e.g.:
+  ```bash
+  ./venv/bin/gunicorn -w 4 -b 10.0.0.56:5000 app:app
+  ```
+
+---
+
+## Troubleshooting
+- **ModuleNotFoundError: No module named 'flask'**
+  - Make sure your virtual environment is activated and all requirements are installed.
+  - Run Gunicorn from the venv path.
+- **Data too long for column 'password_hash'**
+  - See Database Notes above.
+- **Can't access site without :5000**
+  - Ensure Nginx is set up as a reverse proxy as described above.
+- **Service not starting**
+  - Check logs with `sudo journalctl -u recipe-website -f` and ensure all paths and environment variables are correct.
+
+---
+
 ## License
 MIT License
