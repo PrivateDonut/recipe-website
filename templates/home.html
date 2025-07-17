@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Recipe Home{% endblock %}
+{% block content %}
+<h1 class="text-center">All Recipes</h1>
+<div class="row justify-content-center mb-4">
+    <div class="col-md-6">
+        <input type="text" id="searchBar" class="form-control" placeholder="Search recipes by name or ingredient...">
+    </div>
+</div>
+<div class="row justify-content-center" id="recipe-cards">
+    {% for recipe in recipes %}
+    <div class="col-md-4 mb-3 recipe-card" data-name="{{ recipe.name|lower }}" data-ingredients="{{ recipe.ingredients|lower }}">
+        <a href="{{ url_for('view_recipe', recipe_id=recipe.id) }}" class="card-link">
+            <div class="card h-100">
+                <img src="{{ recipe.image_url if recipe.image_url else default_image }}" class="card-img-top" alt="Recipe Image" style="object-fit:cover; height:200px;">
+                <div class="card-body text-center">
+                    <h5 class="card-title">{{ recipe.name }}</h5>
+                </div>
+            </div>
+        </a>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+    const searchBar = document.getElementById('searchBar');
+    const cards = document.querySelectorAll('.recipe-card');
+    searchBar.addEventListener('input', function() {
+        const query = this.value.toLowerCase();
+        let shown = 0;
+        cards.forEach(card => {
+            const name = card.getAttribute('data-name');
+            const ingredients = card.getAttribute('data-ingredients');
+            if ((name.includes(query) || ingredients.includes(query))) {
+                card.style.display = '';
+                shown++;
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    });
+</script>
+{% endblock %} 

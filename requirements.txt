@@ -1,0 +1,8 @@
+Flask
+Flask-SQLAlchemy
+Werkzeug
+selenium
+webdriver-manager
+beautifulsoup4
+openai
+python-dotenv 

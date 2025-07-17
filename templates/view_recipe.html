@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}{{ recipe.name }} - Recipe{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <img src="{{ recipe.image_url if recipe.image_url else default_image }}" class="card-img-top" alt="Recipe Image" style="object-fit:cover; height:300px;">
+            <div class="card-body">
+                <h2 class="card-title">{{ recipe.name }}</h2>
+                <h6>Ingredients:</h6>
+                <ul>
+                    {% for ingredient in recipe.ingredients.split('\n') if ingredient.strip() %}
+                    <li>{{ ingredient }}</li>
+                    {% endfor %}
+                </ul>
+                <h6>Instructions:</h6>
+                <p>{{ recipe.instructions }}</p>
+                <form action="{{ url_for('add_to_cart', recipe_id=recipe.id) }}" method="POST" class="d-inline-block mb-2">
+                    <button type="submit" class="btn btn-success">Add to Cart</button>
+                </form>
+                <a href="{{ url_for('edit_recipe', recipe_id=recipe.id) }}" class="btn btn-primary me-2">Edit</a>
+                <form action="{{ url_for('delete_recipe', recipe_id=recipe.id) }}" method="POST" class="d-inline-block">
+                    <div class="input-group">
+                        <input type="text" name="confirm" class="form-control" placeholder="Type 'delete' to confirm" required style="max-width: 180px;">
+                        <button type="submit" class="btn btn-danger">Delete</button>
+                    </div>
+                </form>
+                {% if error %}
+                <div class="alert alert-danger mt-2">{{ error }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

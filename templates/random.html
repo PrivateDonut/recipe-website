@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Random Recipes{% endblock %}
+{% block content %}
+<h1 class="text-center">Random Recipes</h1>
+{% if recipes %}
+<form method="POST" action="{{ url_for('add_random_to_cart') }}">
+    <div class="row justify-content-center">
+        {% for recipe in recipes %}
+        <div class="col-md-4 mb-3">
+            <div class="card h-100">
+                <img src="{{ recipe.image_url if recipe.image_url else default_image }}" class="card-img-top" alt="Recipe Image" style="object-fit:cover; height:200px;">
+                <div class="card-body text-center">
+                    <h5 class="card-title">{{ recipe.name }}</h5>
+                    <input type="hidden" name="recipe_id" value="{{ recipe.id }}">
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="text-center mt-4">
+        <button type="submit" class="btn btn-success">Add All Ingredients to Cart</button>
+    </div>
+</form>
+{% else %}
+<div class="alert alert-info text-center">No recipes found.</div>
+{% endif %}
+{% endblock %} 

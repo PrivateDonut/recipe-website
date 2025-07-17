@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+{% block title %}Edit Recipe{% endblock %}
+{% block content %}
+<h1 class="text-center">Edit Recipe</h1>
+<form method="POST" class="mx-auto" style="max-width: 600px;" enctype="multipart/form-data">
+    <div class="mb-3">
+        <label for="name" class="form-label">Recipe Name</label>
+        <input type="text" class="form-control" id="name" name="name" value="{{ recipe.name }}" placeholder="e.g. Classic Hamburger" required>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Ingredients</label>
+        <div class="row g-2 mb-1">
+            <div class="col-6"><small class="text-secondary">Name</small></div>
+            <div class="col-3"><small class="text-secondary">Quantity</small></div>
+            <div class="col-3"><small class="text-secondary">Unit</small></div>
+        </div>
+        <div id="ingredients-list">
+            {% for ing in ingredients_list %}
+            <div class="row g-2 mb-2 ingredient-row">
+                <div class="col-6">
+                    <input type="text" class="form-control ingredient-input" name="ingredient_name" value="{{ ing.name }}" placeholder="e.g. Ground Beef" autocomplete="off" required>
+                </div>
+                <div class="col-3">
+                    <input type="number" min="0" step="any" class="form-control" name="ingredient_qty" value="{{ ing.quantity }}" placeholder="e.g. 2" required>
+                </div>
+                <div class="col-3">
+                    <select class="form-select" name="ingredient_unit" required>
+                        <option value="">Select unit</option>
+                        <option value="lbs" {% if ing.unit == 'lbs' %}selected{% endif %}>lbs</option>
+                        <option value="oz" {% if ing.unit == 'oz' %}selected{% endif %}>oz</option>
+                        <option value="g" {% if ing.unit == 'g' %}selected{% endif %}>g</option>
+                        <option value="kg" {% if ing.unit == 'kg' %}selected{% endif %}>kg</option>
+                        <option value="cups" {% if ing.unit == 'cups' %}selected{% endif %}>cups</option>
+                        <option value="tbsp" {% if ing.unit == 'tbsp' %}selected{% endif %}>tbsp</option>
+                        <option value="tsp" {% if ing.unit == 'tsp' %}selected{% endif %}>tsp</option>
+                        <option value="pieces" {% if ing.unit == 'pieces' %}selected{% endif %}>pieces</option>
+                        <option value="cloves" {% if ing.unit == 'cloves' %}selected{% endif %}>cloves</option>
+                        <option value="slices" {% if ing.unit == 'slices' %}selected{% endif %}>slices</option>
+                        <option value="" {% if ing.unit == '' %}selected{% endif %}>(other)</option>
+                    </select>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="button" class="btn btn-add-ingredient" id="add-ingredient-btn">Add Another Ingredient</button>
+    </div>
+    <div class="mb-3">
+        <label for="instructions" class="form-label">Instructions</label>
+        <textarea class="form-control" id="instructions" name="instructions" rows="3" placeholder="e.g. Mix all ingredients, form into patties, and grill..." required>{{ recipe.instructions }}</textarea>
+    </div>
+    <div class="mb-3">
+        <label for="image" class="form-label">Recipe Image</label>
+        <input type="file" class="form-control" id="image" name="image" accept="image/*">
+        <div class="mt-2">
+            <img src="{{ recipe.image_url if recipe.image_url else default_image }}" alt="Current Image" style="object-fit:cover; height:150px;">
+        </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+    <a href="{{ url_for('view_recipe', recipe_id=recipe.id) }}" class="btn btn-secondary ms-2">Cancel</a>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+    // Add ingredient rows
+    const addBtn = document.getElementById('add-ingredient-btn');
+    const ingredientsList = document.getElementById('ingredients-list');
+    addBtn.addEventListener('click', function() {
+        const row = document.createElement('div');
+        row.className = 'row g-2 mb-2 ingredient-row';
+        row.innerHTML = `
+            <div class="col-6">
+                <input type="text" class="form-control ingredient-input" name="ingredient_name" placeholder="e.g. Ground Beef" autocomplete="off" required>
+            </div>
+            <div class="col-3">
+                <input type="number" min="0" step="any" class="form-control" name="ingredient_qty" placeholder="e.g. 2" required>
+            </div>
+            <div class="col-3">
+                <select class="form-select" name="ingredient_unit" required>
+                    <option value="">Select unit</option>
+                    <option value="lbs">lbs</option>
+                    <option value="oz">oz</option>
+                    <option value="g">g</option>
+                    <option value="kg">kg</option>
+                    <option value="cups">cups</option>
+                    <option value="tbsp">tbsp</option>
+                    <option value="tsp">tsp</option>
+                    <option value="pieces">pieces</option>
+                    <option value="cloves">cloves</option>
+                    <option value="slices">slices</option>
+                    <option value="">(other)</option>
+                </select>
+            </div>
+        `;
+        ingredientsList.appendChild(row);
+        attachAutocomplete(row.querySelector('.ingredient-input'));
+    });
+
+    // Autocomplete logic
+    let ingredientSuggestions = [];
+    fetch('/ingredients_list')
+        .then(res => res.json())
+        .then(data => { ingredientSuggestions = data; });
+
+    function attachAutocomplete(input) {
+        let currentFocus;
+        input.addEventListener('input', function() {
+            let val = this.value;
+            closeAllLists();
+            if (!val) return false;
+            currentFocus = -1;
+            const list = document.createElement('div');
+            list.setAttribute('class', 'autocomplete-items list-group position-absolute');
+            list.style.width = input.offsetWidth + 'px';
+            this.parentNode.appendChild(list);
+            ingredientSuggestions.forEach(function(suggestion) {
+                if (suggestion.toLowerCase().includes(val.toLowerCase())) {
+                    const item = document.createElement('div');
+                    item.innerHTML = suggestion;
+                    item.className = 'list-group-item list-group-item-action bg-dark text-light';
+                    item.addEventListener('click', function() {
+                        input.value = suggestion;
+                        closeAllLists();
+                    });
+                    list.appendChild(item);
+                }
+            });
+        });
+        input.addEventListener('keydown', function(e) {
+            let list = this.parentNode.querySelector('.autocomplete-items');
+            if (list) list = list.getElementsByTagName('div');
+            if (e.keyCode == 40) { // down
+                currentFocus++;
+                addActive(list);
+            } else if (e.keyCode == 38) { // up
+                currentFocus--;
+                addActive(list);
+            } else if (e.keyCode == 13) { // enter
+                e.preventDefault();
+                if (currentFocus > -1 && list) {
+                    list[currentFocus].click();
+                }
+            }
+        });
+        function addActive(list) {
+            if (!list) return false;
+            removeActive(list);
+            if (currentFocus >= list.length) currentFocus = 0;
+            if (currentFocus < 0) currentFocus = list.length - 1;
+            list[currentFocus].classList.add('active');
+        }
+        function removeActive(list) {
+            for (let i = 0; i < list.length; i++) {
+                list[i].classList.remove('active');
+            }
+        }
+        function closeAllLists(elmnt) {
+            const items = document.getElementsByClassName('autocomplete-items');
+            for (let i = 0; i < items.length; i++) {
+                if (elmnt != items[i] && elmnt != input) {
+                    items[i].parentNode.removeChild(items[i]);
+                }
+            }
+        }
+        document.addEventListener('click', function (e) {
+            closeAllLists(e.target);
+        });
+    }
+    // Attach autocomplete to all current ingredient fields
+    document.querySelectorAll('.ingredient-input').forEach(attachAutocomplete);
+</script>
+{% endblock %} 
