@@ -186,26 +186,31 @@ def edit_recipe(recipe_id):
     default_image = url_for('static', filename='default.jpg')
     # Parse ingredients for the edit form
     def parse_ingredient(ingredient_str):
-        # Try to match: quantity (optional), unit (optional), name (required)
+        known_units = {'lbs', 'oz', 'g', 'kg', 'cups', 'tbsp', 'tsp', 'pieces', 'cloves', 'slices'}
         parts = ingredient_str.strip().split()
         if not parts:
             return {'quantity': '', 'unit': '', 'name': ''}
         # If only one part, it's just the name
         if len(parts) == 1:
             return {'quantity': '', 'unit': '', 'name': parts[0]}
-        # If two parts, could be quantity+name or unit+name
-        if len(parts) == 2:
-            # If first part looks like a number or fraction, treat as quantity+name
-            if re.match(r'^[\d/.]+$', parts[0]):
-                return {'quantity': parts[0], 'unit': '', 'name': parts[1]}
+        # If first part is a number/fraction, check for unit next
+        if re.match(r'^[\d/.]+$', parts[0]):
+            quantity = parts[0]
+            if len(parts) > 2 and parts[1].lower() in known_units:
+                unit = parts[1]
+                name = ' '.join(parts[2:])
+            elif len(parts) > 1:
+                unit = ''
+                name = ' '.join(parts[1:])
             else:
-                return {'quantity': '', 'unit': parts[0], 'name': parts[1]}
-        # If three or more parts, treat as quantity, unit, name (name may have spaces)
-        return {
-            'quantity': parts[0] if re.match(r'^[\d/.]+$', parts[0]) else '',
-            'unit': parts[1] if re.match(r'^[a-zA-Z]+$', parts[1]) else '',
-            'name': ' '.join(parts[2:]) if re.match(r'^[\d/.]+$', parts[0]) and re.match(r'^[a-zA-Z]+$', parts[1]) else ' '.join(parts[1:])
-        }
+                unit = ''
+                name = ''
+            return {'quantity': quantity, 'unit': unit, 'name': name}
+        # If first part is a known unit, treat as unit + name
+        if parts[0].lower() in known_units:
+            return {'quantity': '', 'unit': parts[0], 'name': ' '.join(parts[1:])}
+        # Otherwise, treat the whole line as the name (handles multi-word names)
+        return {'quantity': '', 'unit': '', 'name': ' '.join(parts)}
     ingredients_list = [parse_ingredient(ing) for ing in recipe.ingredients.split('\n') if ing.strip()]
     if not ingredients_list:
         ingredients_list = [{'quantity': '', 'unit': '', 'name': ''}]
