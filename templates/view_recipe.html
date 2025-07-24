@@ -14,7 +14,7 @@
                     {% endfor %}
                 </ul>
                 <h6>Instructions:</h6>
-                <p>{{ recipe.instructions }}</p>
+                <p style="white-space: pre-line;">{{ recipe.instructions }}</p>
                 <form action="{{ url_for('add_to_cart', recipe_id=recipe.id) }}" method="POST" class="d-inline-block mb-2">
                     <button type="submit" class="btn btn-success">Add to Cart</button>
                 </form>

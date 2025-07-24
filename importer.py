@@ -7,6 +7,7 @@ import json
 import os
 import openai
 import re
+import traceback
 
 def fetch_html_with_browser(url: str) -> str:
     options = Options()
@@ -125,4 +126,5 @@ def add_recipe_from_url(url: str) -> 'dict | None':
             }
     except Exception as e:
         print(f"Error importing recipe: {e}")
+        traceback.print_exc()
         return None 

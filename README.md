@@ -6,7 +6,7 @@ A full-featured web application for managing, viewing, and importing recipes. Bu
 
 ## Features
 
-- **Add, Edit, and View Recipes**: Store recipes with ingredients, instructions, and images.
+- **Add, Edit, and View Recipes**: Store recipes with ingredients, instructions, and images. Ingredient quantity and unit fields are optional, and you can use fractions (e.g., 2/3) in the quantity field.
 - **Import Recipes from URL**: Scrape recipe sites and use OpenAI to parse ingredients.
 - **Random Recipe**: Get a random recipe suggestion.
 - **Recipe Cart**: Add recipes to a cart for meal planning or shopping.
@@ -125,6 +125,8 @@ For production, use Nginx to proxy requests to Gunicorn.
 - Use the navigation bar to add, view, or import recipes.
 - Import recipes from supported URLs using the "Import" button.
 - Add recipes to your cart for planning.
+- When adding or editing a recipe, ingredient quantity and unit fields are optional. You can enter fractions (e.g., 1/2, 2/3) in the quantity field.
+- Recipe instructions will display with preserved formatting and line breaks.
 
 ---
 
@@ -132,24 +134,6 @@ For production, use Nginx to proxy requests to Gunicorn.
 - **OpenAI API Key**: Required for ingredient parsing when importing recipes from URLs.
 - **Chrome/Chromium**: Selenium uses headless Chrome for scraping. Ensure `chromium-browser` and `chromium-chromedriver` are installed.
 - **Database**: Uses MySQL by default (see `.env` for configuration).
-
----
-
-## User Authentication
-- Users can register with a username, email, and password.
-- Passwords are securely hashed and stored in the database.
-- Only authenticated users can upload recipes.
-- Login and logout functionality is provided.
-
----
-
-## Database Notes
-- The `password_hash` column in the `user` table must be at least `VARCHAR(512)` to support modern password hashes (e.g., scrypt, bcrypt).
-- If you get an error like `Data too long for column 'password_hash'`, run this in your MySQL shell (after selecting your database):
-  ```sql
-  ALTER TABLE user MODIFY password_hash VARCHAR(512) NOT NULL;
-  ```
-- Use `SHOW TABLES;` and `DESCRIBE user;` to inspect your schema.
 
 ---
 
@@ -170,8 +154,6 @@ For production, use Nginx to proxy requests to Gunicorn.
 - **ModuleNotFoundError: No module named 'flask'**
   - Make sure your virtual environment is activated and all requirements are installed.
   - Run Gunicorn from the venv path.
-- **Data too long for column 'password_hash'**
-  - See Database Notes above.
 - **Can't access site without :5000**
   - Ensure Nginx is set up as a reverse proxy as described above.
 - **Service not starting**
