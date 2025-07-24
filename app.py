@@ -186,15 +186,26 @@ def edit_recipe(recipe_id):
     default_image = url_for('static', filename='default.jpg')
     # Parse ingredients for the edit form
     def parse_ingredient(ingredient_str):
-        match = re.match(r'^\s*(?P<quantity>[\d/.]+)?\s*(?P<unit>[a-zA-Z]+)?\s*(?P<name>.+)$', ingredient_str.strip())
-        if match:
-            return {
-                'quantity': match.group('quantity') or '',
-                'unit': match.group('unit') or '',
-                'name': match.group('name') or ''
-            }
-        else:
-            return {'quantity': '', 'unit': '', 'name': ingredient_str.strip()}
+        # Try to match: quantity (optional), unit (optional), name (required)
+        parts = ingredient_str.strip().split()
+        if not parts:
+            return {'quantity': '', 'unit': '', 'name': ''}
+        # If only one part, it's just the name
+        if len(parts) == 1:
+            return {'quantity': '', 'unit': '', 'name': parts[0]}
+        # If two parts, could be quantity+name or unit+name
+        if len(parts) == 2:
+            # If first part looks like a number or fraction, treat as quantity+name
+            if re.match(r'^[\d/.]+$', parts[0]):
+                return {'quantity': parts[0], 'unit': '', 'name': parts[1]}
+            else:
+                return {'quantity': '', 'unit': parts[0], 'name': parts[1]}
+        # If three or more parts, treat as quantity, unit, name (name may have spaces)
+        return {
+            'quantity': parts[0] if re.match(r'^[\d/.]+$', parts[0]) else '',
+            'unit': parts[1] if re.match(r'^[a-zA-Z]+$', parts[1]) else '',
+            'name': ' '.join(parts[2:]) if re.match(r'^[\d/.]+$', parts[0]) and re.match(r'^[a-zA-Z]+$', parts[1]) else ' '.join(parts[1:])
+        }
     ingredients_list = [parse_ingredient(ing) for ing in recipe.ingredients.split('\n') if ing.strip()]
     if not ingredients_list:
         ingredients_list = [{'quantity': '', 'unit': '', 'name': ''}]
