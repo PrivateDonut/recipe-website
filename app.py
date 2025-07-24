@@ -10,6 +10,7 @@ from functools import wraps
 import re
 from dotenv import load_dotenv
 load_dotenv()
+import click
 
 # MySQL configuration
 MYSQL_USER = os.getenv('MYSQL_USER', 'root')
@@ -24,69 +25,23 @@ app.config['UPLOAD_FOLDER'] = os.path.join('static')
 app.secret_key = 'supersecretkey'  # Needed for session
 db = SQLAlchemy(app)
 
+# Ingredient model
+class Ingredient(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    quantity = db.Column(db.String(32), nullable=True)
+    unit = db.Column(db.String(32), nullable=True)
+
 # Recipe model
 class Recipe(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    ingredients = db.Column(db.Text, nullable=False)
     instructions = db.Column(db.Text, nullable=False)
     image_url = db.Column(db.String(255), nullable=True, default=None)
-
-# Helper: get current user
-# def login_required(f):
-#     @wraps(f)
-#     def decorated_function(*args, **kwargs):
-#         if 'user_id' not in session:
-#             flash('You must be logged in to upload recipes.', 'warning')
-#             return redirect(url_for('login'))
-#         return f(*args, **kwargs)
-#     return decorated_function
-
-# Registration route
-# @app.route('/register', methods=['GET', 'POST'])
-# def register():
-#     if request.method == 'POST':
-#         username = request.form['username']
-#         email = request.form['email']
-#         password = request.form['password']
-#         if User.query.filter((User.username == username) | (User.email == email)).first():
-#             flash('Username or email already exists.', 'danger')
-#             return redirect(url_for('register'))
-#         user = User(
-#             username=username,
-#             email=email,
-#             password_hash=generate_password_hash(password)
-#         )
-#         db.session.add(user)
-#         db.session.commit()
-#         flash('Registration successful. Please log in.', 'success')
-#         return redirect(url_for('login'))
-#     return render_template('register.html')
-
-# Login route
-# @app.route('/login', methods=['GET', 'POST'])
-# def login():
-#     if request.method == 'POST':
-#         username_or_email = request.form['username_or_email']
-#         password = request.form['password']
-#         user = User.query.filter((User.username == username_or_email) | (User.email == username_or_email)).first()
-#         if user and check_password_hash(user.password_hash, password):
-#             session['user_id'] = user.id
-#             session['username'] = user.username
-#             flash('Logged in successfully.', 'success')
-#             return redirect(url_for('home'))
-#         else:
-#             flash('Invalid credentials.', 'danger')
-#             return redirect(url_for('login'))
-#     return render_template('login.html')
-
-# Logout route
-# @app.route('/logout')
-# def logout():
-#     session.pop('user_id', None)
-#     session.pop('username', None)
-#     flash('Logged out.', 'info')
-#     return redirect(url_for('home')
+    ingredients = db.relationship('Ingredient', backref='recipe', cascade='all, delete-orphan')
+    # Legacy column for migration - will be removed after migration
+    legacy_ingredients = db.Column('ingredients', db.Text, nullable=True)
 
 @app.route('/')
 def home():
@@ -94,26 +49,17 @@ def home():
     default_image = url_for('static', filename='default.jpg')
     return render_template('home.html', recipes=recipes, default_image=default_image)
 
-@app.route('/type/<recipe_type>')
-def recipe_type(recipe_type):
-    recipes = Recipe.query.filter_by(type=recipe_type).all()
-    default_image = url_for('static', filename='default.jpg')
-    return render_template('home.html', recipes=recipes, default_image=default_image)
+# Remove or comment out this route unless you add a 'type' column to Recipe
+# @app.route('/type/<recipe_type>')
+# def recipe_type(recipe_type):
+#     recipes = Recipe.query.filter_by(type=recipe_type).all()
+#     default_image = url_for('static', filename='default.jpg')
+#     return render_template('home.html', recipes=recipes, default_image=default_image)
 
 @app.route('/add', methods=['GET', 'POST'])
 def add_recipe():
     if request.method == 'POST':
         name = request.form['name']
-        # Collect all ingredient fields
-        names = request.form.getlist('ingredient_name')
-        qtys = request.form.getlist('ingredient_qty')
-        units = request.form.getlist('ingredient_unit')
-        ingredients = []
-        for n, q, u in zip(names, qtys, units):
-            if n.strip():
-                part = f"{q.strip()} {u.strip()} {n.strip()}".strip()
-                ingredients.append(part)
-        ingredients_str = '\n'.join(ingredients)
         instructions = request.form['instructions']
         image_file = request.files.get('image')
         image_url = None
@@ -122,8 +68,18 @@ def add_recipe():
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             image_file.save(filepath)
             image_url = url_for('static', filename=filename)
-        new_recipe = Recipe(name=name, ingredients=ingredients_str, instructions=instructions, image_url=image_url)
+        new_recipe = Recipe(name=name, instructions=instructions, image_url=image_url)
         db.session.add(new_recipe)
+        db.session.flush()  # Get new_recipe.id before commit
+
+        # Add ingredients
+        names = request.form.getlist('ingredient_name')
+        qtys = request.form.getlist('ingredient_qty')
+        units = request.form.getlist('ingredient_unit')
+        for n, q, u in zip(names, qtys, units):
+            if n.strip():
+                ing = Ingredient(recipe_id=new_recipe.id, name=n.strip(), quantity=q.strip(), unit=u.strip())
+                db.session.add(ing)
         db.session.commit()
         return redirect(url_for('home'))
     return render_template('add.html')
@@ -165,15 +121,6 @@ def edit_recipe(recipe_id):
     recipe = Recipe.query.get_or_404(recipe_id)
     if request.method == 'POST':
         recipe.name = request.form['name']
-        names = request.form.getlist('ingredient_name')
-        qtys = request.form.getlist('ingredient_qty')
-        units = request.form.getlist('ingredient_unit')
-        ingredients = []
-        for n, q, u in zip(names, qtys, units):
-            if n.strip():
-                part = f"{q.strip()} {u.strip()} {n.strip()}".strip()
-                ingredients.append(part)
-        recipe.ingredients = '\n'.join(ingredients)
         recipe.instructions = request.form['instructions']
         image_file = request.files.get('image')
         if image_file and image_file.filename:
@@ -181,37 +128,20 @@ def edit_recipe(recipe_id):
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             image_file.save(filepath)
             recipe.image_url = url_for('static', filename=filename)
+        # Remove old ingredients
+        Ingredient.query.filter_by(recipe_id=recipe.id).delete()
+        # Add new ingredients
+        names = request.form.getlist('ingredient_name')
+        qtys = request.form.getlist('ingredient_qty')
+        units = request.form.getlist('ingredient_unit')
+        for n, q, u in zip(names, qtys, units):
+            if n.strip():
+                ing = Ingredient(recipe_id=recipe.id, name=n.strip(), quantity=q.strip(), unit=u.strip())
+                db.session.add(ing)
         db.session.commit()
         return redirect(url_for('view_recipe', recipe_id=recipe.id))
     default_image = url_for('static', filename='default.jpg')
-    # Parse ingredients for the edit form
-    def parse_ingredient(ingredient_str):
-        known_units = {'lbs', 'oz', 'g', 'kg', 'cups', 'tbsp', 'tsp', 'pieces', 'cloves', 'slices'}
-        parts = ingredient_str.strip().split()
-        if not parts:
-            return {'quantity': '', 'unit': '', 'name': ''}
-        # If only one part, it's just the name
-        if len(parts) == 1:
-            return {'quantity': '', 'unit': '', 'name': parts[0]}
-        # If first part is a number/fraction, check for unit next
-        if re.match(r'^[\d/.]+$', parts[0]):
-            quantity = parts[0]
-            if len(parts) > 2 and parts[1].lower() in known_units:
-                unit = parts[1]
-                name = ' '.join(parts[2:])
-            elif len(parts) > 1:
-                unit = ''
-                name = ' '.join(parts[1:])
-            else:
-                unit = ''
-                name = ''
-            return {'quantity': quantity, 'unit': unit, 'name': name}
-        # If first part is a known unit, treat as unit + name
-        if parts[0].lower() in known_units:
-            return {'quantity': '', 'unit': parts[0], 'name': ' '.join(parts[1:])}
-        # Otherwise, treat the whole line as the name (handles multi-word names)
-        return {'quantity': '', 'unit': '', 'name': ' '.join(parts)}
-    ingredients_list = [parse_ingredient(ing) for ing in recipe.ingredients.split('\n') if ing.strip()]
+    ingredients_list = [{'name': ing.name, 'quantity': ing.quantity, 'unit': ing.unit} for ing in recipe.ingredients]
     if not ingredients_list:
         ingredients_list = [{'quantity': '', 'unit': '', 'name': ''}]
     return render_template('edit_recipe.html', recipe=recipe, default_image=default_image, ingredients_list=ingredients_list)
@@ -247,10 +177,12 @@ def view_cart():
 def add_to_cart(recipe_id):
     recipe = Recipe.query.get_or_404(recipe_id)
     cart = session.get('cart', [])
-    # Add all ingredients from this recipe
-    for ingredient in recipe.ingredients.split('\n'):
-        if ingredient.strip():
-            cart.append(ingredient.strip())
+    # Add all ingredients from this recipe using the new relationship
+    for ingredient in recipe.ingredients:
+        if ingredient.name:
+            # Format ingredient string for cart
+            ingredient_str = f"{ingredient.quantity} {ingredient.unit} {ingredient.name}".strip()
+            cart.append(ingredient_str)
     session['cart'] = cart
     return redirect(url_for('view_cart'))
 
@@ -273,25 +205,87 @@ def add_random_to_cart():
     for rid in recipe_ids:
         recipe = Recipe.query.get(int(rid))
         if recipe:
-            for ingredient in recipe.ingredients.split('\n'):
-                if ingredient.strip():
-                    cart.append(ingredient.strip())
+            # Add ingredients using the new relationship
+            for ingredient in recipe.ingredients:
+                if ingredient.name:
+                    ingredient_str = f"{ingredient.quantity} {ingredient.unit} {ingredient.name}".strip()
+                    cart.append(ingredient_str)
     session['cart'] = cart
     return redirect(url_for('view_cart'))
 
 @app.route('/ingredients_list')
 def ingredients_list():
-    # Get all unique ingredients from all recipes
+    # Get all unique ingredients from all recipes using the new relationship
     all_ingredients = set()
     for recipe in Recipe.query.all():
-        for ing in recipe.ingredients.split('\n'):
-            ing = ing.strip()
-            if ing:
-                all_ingredients.add(ing)
+        for ing in recipe.ingredients:
+            if ing.name:
+                all_ingredients.add(ing.name)
     return jsonify(sorted(all_ingredients))
 
+def parse_ingredient(ingredient_str):
+    known_units = {'lbs', 'oz', 'g', 'kg', 'cups', 'tbsp', 'tsp', 'pieces', 'cloves', 'slices'}
+    parts = ingredient_str.strip().split()
+    if not parts:
+        return {'quantity': '', 'unit': '', 'name': ''}
+    if len(parts) == 1:
+        return {'quantity': '', 'unit': '', 'name': parts[0]}
+    if re.match(r'^[\d/.]+$', parts[0]):
+        quantity = parts[0]
+        if len(parts) > 2 and parts[1].lower() in known_units:
+            unit = parts[1]
+            name = ' '.join(parts[2:])
+        elif len(parts) > 1:
+            unit = ''
+            name = ' '.join(parts[1:])
+        else:
+            unit = ''
+            name = ''
+        return {'quantity': quantity, 'unit': unit, 'name': name}
+    if parts[0].lower() in known_units:
+        return {'quantity': '', 'unit': parts[0], 'name': ' '.join(parts[1:])}
+    return {'quantity': '', 'unit': '', 'name': ' '.join(parts)}
+
+def migrate_ingredients():
+    """Migrate ingredients from legacy text column to normalized Ingredient table"""
+    migrated_recipes = 0
+    total_ingredients = 0
+    
+    for recipe in Recipe.query.all():
+        # Skip if already migrated (has Ingredient children)
+        if Ingredient.query.filter_by(recipe_id=recipe.id).count() > 0:
+            continue
+            
+        # Check if recipe has legacy ingredients to migrate
+        if not recipe.legacy_ingredients:
+            continue
+            
+        # Parse and migrate ingredients
+        for line in recipe.legacy_ingredients.splitlines():
+            line = line.strip()
+            if line:
+                parsed = parse_ingredient(line)
+                ing = Ingredient(
+                    recipe_id=recipe.id,
+                    name=parsed['name'],
+                    quantity=parsed['quantity'],
+                    unit=parsed['unit']
+                )
+                db.session.add(ing)
+                total_ingredients += 1
+        
+        migrated_recipes += 1
+    
+    db.session.commit()
+    print(f'Migration complete! {migrated_recipes} recipes migrated, {total_ingredients} ingredients created.')
+
+@app.cli.command('migrate-ingredients')
+def migrate_ingredients_command():
+    """Migrate ingredients from legacy text column to normalized table"""
+    with app.app_context():
+        migrate_ingredients()
+
 if __name__ == '__main__':
-    if not os.path.exists('recipes.db'):
-        with app.app_context():
-            db.create_all()
+    with app.app_context():
+        db.create_all()
     app.run(debug=True) 

@@ -9,8 +9,12 @@
                 <h2 class="card-title">{{ recipe.name }}</h2>
                 <h6>Ingredients:</h6>
                 <ul>
-                    {% for ingredient in recipe.ingredients.split('\n') if ingredient.strip() %}
-                    <li>{{ ingredient }}</li>
+                    {% for ing in recipe.ingredients %}
+                        <li>
+                            {% if ing.quantity %}{{ ing.quantity }} {% endif %}
+                            {% if ing.unit %}{{ ing.unit }} {% endif %}
+                            {{ ing.name }}
+                        </li>
                     {% endfor %}
                 </ul>
                 <h6>Instructions:</h6>
